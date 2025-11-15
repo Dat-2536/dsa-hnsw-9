@@ -1,2 +1,6 @@
-hnswlib 
+numpy
 gradio
+# Visualize
+flask 
+flask-cors 
+scikit-learn 

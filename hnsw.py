@@ -84,7 +84,21 @@ class HNSWSearchSystem:
               ids = [ids]
          for id in ids:
              self.index.mark_deleted(id)
-             
+     
+    def clear(self) -> None:
+          self.index = hnswlib.Index(self.space, self.dim)
+          if hasattr(self, 'max_elements') and hasattr(self, 'ef_construction') and hasattr(self, 'M'):
+               self.index.init_index(self.max_elements, self.ef_construction, self.M)
+        
+               # Thiết lập lại các tham số tìm kiếm nếu tồn tại
+               if hasattr(self, 'ef_search'):
+                    self.index.set_ef(self.ef_search)
+               if hasattr(self, 'num_threads'):
+                    self.index.set_num_threads(self.num_threads)
+          else:
+               # Nếu chưa từng được build, đánh dấu là chưa build
+               self.is_built = False  
+      
     def generate_data(self, num_elements:int) -> None:
          #Tạo ngẫu nhiên một só các vector để add vào đồ thị
          data = np.float32(np.random.random((num_elements, self.dim)))
@@ -106,6 +120,41 @@ class HNSWSearchSystem:
         
         labels, distances = self.index.knn_query(query, k)
         return labels, distances
+    
+    def get_graph_max_level(self) -> int:
+        """Trả về tầng cao nhất của toàn bộ đồ thị HNSW."""
+        if not self.is_built:
+            raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
+        return self.index.get_graph_max_level()
+
+    def get_element_max_level(self, label: int) -> int:
+        """Trả về tầng cao nhất mà một phần tử (theo label) tồn tại."""
+        if not self.is_built:
+            raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
+        return self.index.get_element_max_level(label)
+
+    def get_neighbors(self, label: int, level: int) -> list:
+        """
+        Trả về danh sách các label hàng xóm của một phần tử tại một tầng (level) nhất định.
+        """
+        if not self.is_built:
+            raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
+        return self.index.get_neighbors(label, level)
+
+    def get_entry_point(self) -> int | None:
+        """
+        Trả về label của điểm vào (entry point) hiện tại của đồ thị.
+        Trả về None nếu đồ thị rỗng.
+        """
+        if not self.is_built:
+            raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
+        # Giả định hàm C++ binding có tên là get_entry_point_label()
+        # và trả về None nếu không có entry point
+        if hasattr(self.index, 'get_entry_point_label'):
+             return self.index.get_entry_point_label()
+        return None # Hoặc một giá trị mặc định nếu hàm chưa tồn tại
+    
+    
     def create_copy(self) -> 'HNSWSearchSystem':
         """
         Tạo bản Deep copy của hệ thống (dùng pickle round-trip)
