@@ -84,7 +84,21 @@ class HNSWSearchSystem:
               ids = [ids]
          for id in ids:
              self.index.mark_deleted(id)
-             
+     
+    def clear(self) -> None:
+          self.index = hnswlib.Index(self.space, self.dim)
+          if hasattr(self, 'max_elements') and hasattr(self, 'ef_construction') and hasattr(self, 'M'):
+               self.index.init_index(self.max_elements, self.ef_construction, self.M)
+        
+               # Thiết lập lại các tham số tìm kiếm nếu tồn tại
+               if hasattr(self, 'ef_search'):
+                    self.index.set_ef(self.ef_search)
+               if hasattr(self, 'num_threads'):
+                    self.index.set_num_threads(self.num_threads)
+          else:
+               # Nếu chưa từng được build, đánh dấu là chưa build
+               self.is_built = False  
+      
     def generate_data(self, num_elements:int) -> None:
          #Tạo ngẫu nhiên một só các vector để add vào đồ thị
          data = np.float32(np.random.random((num_elements, self.dim)))

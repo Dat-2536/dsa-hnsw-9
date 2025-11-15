@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import requests
 
-data = load_dataset('food101', split='train', streaming=True).take(1000)
+data = load_dataset('food101', split='train', streaming=True).take(500)
 def pil_to_cv2(pil_image):
     return cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
