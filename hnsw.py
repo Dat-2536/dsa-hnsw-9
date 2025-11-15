@@ -120,6 +120,41 @@ class HNSWSearchSystem:
         
         labels, distances = self.index.knn_query(query, k)
         return labels, distances
+    
+    def get_graph_max_level(self) -> int:
+        """Trả về tầng cao nhất của toàn bộ đồ thị HNSW."""
+        if not self.is_built:
+            raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
+        return self.index.get_graph_max_level()
+
+    def get_element_max_level(self, label: int) -> int:
+        """Trả về tầng cao nhất mà một phần tử (theo label) tồn tại."""
+        if not self.is_built:
+            raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
+        return self.index.get_element_max_level(label)
+
+    def get_neighbors(self, label: int, level: int) -> list:
+        """
+        Trả về danh sách các label hàng xóm của một phần tử tại một tầng (level) nhất định.
+        """
+        if not self.is_built:
+            raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
+        return self.index.get_neighbors(label, level)
+
+    def get_entry_point(self) -> int | None:
+        """
+        Trả về label của điểm vào (entry point) hiện tại của đồ thị.
+        Trả về None nếu đồ thị rỗng.
+        """
+        if not self.is_built:
+            raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
+        # Giả định hàm C++ binding có tên là get_entry_point_label()
+        # và trả về None nếu không có entry point
+        if hasattr(self.index, 'get_entry_point_label'):
+             return self.index.get_entry_point_label()
+        return None # Hoặc một giá trị mặc định nếu hàm chưa tồn tại
+    
+    
     def create_copy(self) -> 'HNSWSearchSystem':
         """
         Tạo bản Deep copy của hệ thống (dùng pickle round-trip)

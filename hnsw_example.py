@@ -1,8 +1,8 @@
 from hnsw import HNSWSearchSystem
-import numpy as np
+
 
 system = HNSWSearchSystem(space='l2', dim = 4)
-system.build_hnsw_index(max_elements=1000, ef_construction=200, M=16)
+system.build_hnsw_index(max_elements=1000, ef_construction=2, M = 5)
 
 system.add_items([1,2,3,4])
 system.add_items([2,3,5,3])
@@ -27,3 +27,10 @@ query1_labels = labels[0]
 query2_labels = labels[1]
 print(f"{k} nearest neighbors of {queries[0]}: ", system.get_items(query1_labels))
 print(f"{k} nearest neighbors of {queries[1]}: ", system.get_items(query2_labels))
+
+entry_point = system.get_entry_point()
+print("entry point=", entry_point)
+maxLevel = system.get_graph_max_level()
+print("max level of the graph = ", maxLevel)
+neighbors = system.get_neighbors(entry_point,maxLevel)
+print("neighbors of entry point at maxLevel: ", neighbors)
