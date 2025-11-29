@@ -1,182 +1,326 @@
-# visualize_final.py (Sửa lỗi màu sắc và vị trí tiêu đề)
-
-import networkx as nx
-import plotly.graph_objects as go
-import math
-
-# Import lớp HNSWSearchSystem từ file hnsw.py của bạn
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.patches import Circle
+from scipy.spatial import distance
 from hnsw import HNSWSearchSystem
 
-# ==============================================================================
-# 1. TẠO DỮ LIỆU HNSW
-# ==============================================================================
-print("Đang khởi tạo và xây dựng HNSW index...")
-system = HNSWSearchSystem(space='l2', dim=4)
-M = 2
-EF_CONSTRUCTION = 4
-NUM_ELEMENTS = 200
+# ==========================================
+# 1. SETUP & MODERN STYLING
+# ==========================================
+# Color Palette (Flat UI)
+COLORS = {
+    'bg': '#f8f9fa',        # Light grey background
+    'node_inactive': '#bdc3c7', # Grey
+    'node_active': '#2980b9',   # Strong Blue
+    'neighbor_good': '#27ae60', # Green
+    'neighbor_bad': '#e74c3c',  # Red
+    'query': '#e67e22',         # Orange
+    'trail': '#3498db',         # Light Blue (History)
+    'text': '#2c3e50',          # Dark Grey
+    'true_best': '#f1c40f'      # Gold (True Nearest Neighbor)
+}
 
-system.build_hnsw_index(max_elements=NUM_ELEMENTS + 10, ef_construction=EF_CONSTRUCTION, M=M)
-system.generate_data(NUM_ELEMENTS)
-print(f"Index được tạo với {system.get_size()} phần tử.")
+print("Initializing HNSW System...")
+# --- CHANGE DIMENSION HERE ---
+dim = 2  # Works for 2, 3, 100, etc.
+# -----------------------------
 
-# ==============================================================================
-# 2. TRÍCH XUẤT DỮ LIỆU VÀ XÂY DỰNG ĐỒ THỊ NETWORKX
-# (Phần này giữ nguyên, logic đã chính xác)
-# ==============================================================================
-print("Đang trích xuất dữ liệu và xây dựng đồ thị NetworkX...")
-G = nx.Graph()
-current_labels = system.get_ids_list()
-max_level = system.get_graph_max_level()
-LEVEL_SPACING = 30
+system = HNSWSearchSystem(space='l2', dim=dim)
+system.build_hnsw_index(max_elements=1000, ef_construction=20, M=4)
 
-# --- Xác định tầng cao nhất của mỗi node ---
-node_info_map = {}
-for label in current_labels:
-    node_max_level = -1
-    for l in range(max_level, -1, -1):
-        if system.get_neighbors(label, l) or (label == system.get_entry_point() and l == max_level):
-            node_max_level = l
-            break
-    node_info_map[label] = {"id": int(label), "level": node_max_level}
+np.random.seed(420)
+num_elements = 400
+data = np.random.rand(num_elements, dim).astype(np.float32)
+ids = np.arange(num_elements)
 
-# --- Tính toán vị trí (x, z) chỉ dựa trên Layer 0 ---
-label_to_coords = {}
-all_nodes_info = list(node_info_map.values())
-count = len(all_nodes_info)
-radius = 6 + count * 0.4
-angle_step = 2 * math.pi / count if count > 0 else 0
-for i, info in enumerate(all_nodes_info):
-    angle = i * angle_step
-    x, z = radius * math.cos(angle), radius * math.sin(angle)
-    label_to_coords[info['id']] = {'x': x, 'z': z}
+system.add_items(data, ids)
 
-# --- Thêm node vào đồ thị NetworkX ---
-total_height = max_level * LEVEL_SPACING
-for label, info in node_info_map.items():
-    coords = label_to_coords.get(label)
-    pos_y = (info['level'] * LEVEL_SPACING) - (total_height / 2)
-    G.add_node(label, level=info['level'], pos_x=coords['x'], pos_y=pos_y, pos_z=coords['z'], is_entry_point=(label == system.get_entry_point()))
+# --- DYNAMIC QUERY POINT ---
+query_point = np.full((dim,), 0.5, dtype=np.float32)
 
-# --- Thêm cạnh vào đồ thị NetworkX ---
-for level in range(max_level + 1):
-    for label in current_labels:
-        if G.nodes[label]['level'] >= level:
-            neighbors = system.get_neighbors(label, level)
-            for neighbor_label in neighbors:
-                if int(label) < int(neighbor_label):
-                    G.add_edge(label, neighbor_label, level=level, type='in-layer')
-for label, info in node_info_map.items():
-    if info['level'] > 0:
-        query_vector = system.get_items(label)
-        neighbor_labels, _ = system.knn_query(query_vector, k=1)
-        target_label = neighbor_labels[0][0]
-        if label != target_label:
-            G.add_edge(label, target_label, level=-1, type='inter-layer')
+# --- FIND TRUE NEAREST NEIGHBOR (Brute Force on High-Dim Data) ---
+print("Calculating Ground Truth...")
+all_distances = [distance.euclidean(d, query_point) for d in data]
+true_best_idx = np.argmin(all_distances)
+true_best_id = ids[true_best_idx]
+true_best_dist = all_distances[true_best_idx]
+print(f"True Best Node: {true_best_id} at dist {true_best_dist:.4f}")
 
-# ==============================================================================
-# 3. TRỰC QUAN HÓA BẰNG PLOTLY (CẬP NHẬT STYLE)
-# ==============================================================================
-print("Đang tạo hình ảnh trực quan 3D tương tác bằng Plotly...")
-all_traces = []
+# ==========================================
+# 2. PCA PROJECTION (The Fix for Visual Distortion)
+# ==========================================
+# If dim > 2, we project data to 2D using PCA so relative positions look better.
+# If dim == 2, we just use the data as is.
 
-# --- Tạo các "dấu vết" (traces) cho chế độ xem "All Layers" ---
-edge_x, edge_y, edge_z = [], [], []
-for edge in G.edges(data=True):
-    if edge[2]['type'] == 'in-layer':
-        x0, y0, z0, x1, y1, z1 = G.nodes[edge[0]]['pos_x'], G.nodes[edge[0]]['pos_y'], G.nodes[edge[0]]['pos_z'], G.nodes[edge[1]]['pos_x'], G.nodes[edge[1]]['pos_y'], G.nodes[edge[1]]['pos_z']
-        edge_x.extend([x0, x1, None]); edge_y.extend([y0, y1, None]); edge_z.extend([z0, z1, None])
-all_traces.append(go.Scatter3d(x=edge_x, y=edge_y, z=edge_z, mode='lines', line=dict(width=0.8, color='#aaa'), hoverinfo='none'))
+# Combine data and query to find the best common plane
+all_points = np.vstack([data, query_point])
+data_mean = all_points.mean(axis=0)
+centered_data = all_points - data_mean
 
-inter_edge_x, inter_edge_y, inter_edge_z = [], [], []
-for edge in G.edges(data=True):
-    if edge[2]['type'] == 'inter-layer':
-        x0, y0, z0, x1, y1, z1 = G.nodes[edge[0]]['pos_x'], G.nodes[edge[0]]['pos_y'], G.nodes[edge[0]]['pos_z'], G.nodes[edge[1]]['pos_x'], G.nodes[edge[1]]['pos_y'], G.nodes[edge[1]]['pos_z']
-        inter_edge_x.extend([x0, x1, None]); inter_edge_y.extend([y0, y1, None]); inter_edge_z.extend([z0, z1, None])
-all_traces.append(go.Scatter3d(x=inter_edge_x, y=inter_edge_y, z=inter_edge_z, mode='lines', line=dict(width=2, color='red'), hoverinfo='none'))
+if dim > 2:
+    print(f"Projecting {dim}D data to 2D using PCA...")
+    # SVD is a robust way to compute PCA without extra libraries like sklearn
+    U, S, Vt = np.linalg.svd(centered_data, full_matrices=False)
+    # The first two rows of Vt are the principal components
+    projection_matrix = Vt[:2, :].T
+    projected_data = centered_data @ projection_matrix
+else:
+    projected_data = centered_data # In 2D, just center it
 
-node_x, node_y, node_z, node_text, node_colors, node_sizes = [], [], [], [], [], []
-for node, attr in G.nodes(data=True):
-    node_x.append(attr['pos_x']); node_y.append(attr['pos_y']); node_z.append(attr['pos_z'])
-    is_entry = attr['is_entry_point']
-    entry_txt = "<b>(ENTRY POINT)</b>" if is_entry else ""
-    node_text.append(f"ID: {node}<br>Max Level: {attr['level']}<br>{entry_txt}")
-    node_colors.append(attr['level']); node_sizes.append(15 if is_entry else 8)
-all_traces.append(go.Scatter3d(x=node_x, y=node_y, z=node_z, mode='markers', text=node_text, hoverinfo='text', 
-    marker=dict(
-        size=node_sizes, 
-        color=node_colors, 
-        colorscale='Viridis',
-        # **SỬA LỖI 1**: Khóa thang màu
-        cmin=0,
-        cmax=max_level,
-        showscale=True, 
-        colorbar=dict(
-            thickness=15, 
-            # **SỬA LỖI 2**: Di chuyển tiêu đề sang phải
-            title=dict(text='Node Level', side='right')
-        ),
-        line=dict(width=2, color='DarkSlateGrey')
-    )
-))
+# Separate projected data back out
+plot_data = projected_data[:-1] # All nodes
+plot_query = projected_data[-1]  # The query point
 
-# --- Tạo các "dấu vết" ẩn cho từng tầng cụ thể ---
-for level in range(max_level + 1):
-    edge_x_l, edge_y_l, edge_z_l = [], [], []
-    node_x_l, node_y_l, node_z_l, node_text_l, node_sizes_l, node_colors_l = [], [], [], [], [], []
-    for edge in G.edges(data=True):
-        if edge[2]['level'] == level:
-            x0, y0, z0, x1, y1, z1 = G.nodes[edge[0]]['pos_x'], G.nodes[edge[0]]['pos_y'], G.nodes[edge[0]]['pos_z'], G.nodes[edge[1]]['pos_x'], G.nodes[edge[1]]['pos_y'], G.nodes[edge[1]]['pos_z']
-            edge_x_l.extend([x0, x1, None]); edge_y_l.extend([y0, y1, None]); edge_z_l.extend([z0, z1, None])
-    for node, attr in G.nodes(data=True):
-        if attr['level'] >= level:
-            node_x_l.append(attr['pos_x']); node_y_l.append(attr['pos_y']); node_z_l.append(attr['pos_z'])
-            is_entry = attr['is_entry_point']
-            entry_txt = "<b>(ENTRY POINT)</b>" if is_entry else ""
-            node_text_l.append(f"ID: {node}<br>Max Level: {attr['level']}<br>{entry_txt}")
-            node_colors_l.append(attr['level']); node_sizes_l.append(15 if is_entry else 8)
-    all_traces.append(go.Scatter3d(x=edge_x_l, y=edge_y_l, z=edge_z_l, mode='lines', line=dict(width=0.8, color='#aaa'), hoverinfo='none', visible=False))
-    all_traces.append(go.Scatter3d(x=node_x_l, y=node_y_l, z=node_z_l, mode='markers', text=node_text_l, hoverinfo='text', 
-        marker=dict(
-            size=node_sizes_l, 
-            color=node_colors_l, 
-            colorscale='Viridis',
-            # **SỬA LỖI 1**: Khóa thang màu (cho cả các view layer)
-            cmin=0,
-            cmax=max_level,
-            showscale=False,
-            line=dict(width=2, color='DarkSlateGrey')
-        ), 
-        visible=False
-    ))
+# Helper to get PLOTTING coordinates (2D) from an ID
+def get_plot_pos(id_val):
+    return plot_data[int(id_val)]
 
-# --- Tạo Figure và Dropdown Menu ---
-fig = go.Figure(data=all_traces)
-buttons = []
-visibility_all = [True, True, True] + [False] * (len(all_traces) - 3)
-buttons.append(dict(label="All Layers", method="restyle", args=[{"visible": visibility_all}]))
-for level in range(max_level + 1):
-    visibility_level = [False] * len(all_traces)
-    visibility_level[3 + level * 2] = True
-    visibility_level[3 + level * 2 + 1] = True
-    buttons.append(dict(label=f"Layer {level}", method="restyle", args=[{"visible": visibility_level}]))
+# Helper to get LOGIC coordinates (N-Dim) for distance checks
+def get_real_pos(id_val):
+    return system.get_items([int(id_val)])[0]
 
-fig.update_layout(
-    updatemenus=[dict(
-        active=0, buttons=buttons, direction="down",
-        pad={"r": 10, "t": 10}, showactive=True,
-        x=0.05, xanchor="left", y=1.1, yanchor="top"
-    )],
-    title='Trực quan hóa HNSW 3D',
-    scene=dict(
-        xaxis=dict(showbackground=False, showticklabels=False, title=''),
-        yaxis=dict(showbackground=False, showticklabels=False, title='Layer Height'),
-        zaxis=dict(showbackground=False, showticklabels=False, title=''),
-        camera=dict(eye=dict(x=1.2, y=2.0, z=1.2))
-    ),
-    margin=dict(t=50, b=0, l=0, r=0)
-)
+# ==========================================
+# 3. MAP NODES TO LAYERS
+# ==========================================
+max_graph_level = system.get_graph_max_level()
+nodes_per_level = {i: [] for i in range(max_graph_level + 1)}
+true_best_at_level = {i: False for i in range(max_graph_level + 1)}
 
-print("Đang mở đồ thị trong trình duyệt...")
-fig.show()
-print("Hoàn tất!")
+for idx in ids:
+    pos_2d = get_plot_pos(idx) # Store 2D pos for plotting
+    lvl = system.get_element_max_level(int(idx))
+    for l in range(lvl + 1):
+        nodes_per_level[l].append(pos_2d)
+        if int(idx) == int(true_best_id):
+            true_best_at_level[l] = True
+
+for l in nodes_per_level:
+    nodes_per_level[l] = np.array(nodes_per_level[l])
+
+# ==========================================
+# 4. LOGIC RECORDING (High-Dimensional Physics)
+# ==========================================
+def record_search_events(system, query):
+    events = [] 
+    entry_point = system.get_entry_point()
+    if entry_point is None: return []
+
+    curr_node = entry_point
+    curr_dist = distance.euclidean(get_real_pos(curr_node), query)
+    
+    for level in range(max_graph_level, -1, -1):
+        events.append({"type": "LAYER_START", "level": level, "curr_node": curr_node, "dist": curr_dist})
+
+        while True:
+            try: neighbors = system.get_neighbors(curr_node, level)
+            except: neighbors = []
+            
+            events.append({"type": "SCAN", "level": level, "curr_node": curr_node, "neighbors": neighbors, "dist": curr_dist})
+
+            best_neighbor = curr_node
+            best_neighbor_dist = curr_dist
+            found_better = False
+
+            for n_id in neighbors:
+                # CRITICAL: Distance logic uses REAL HIGH-DIM positions
+                d = distance.euclidean(get_real_pos(n_id), query)
+                if d < best_neighbor_dist:
+                    best_neighbor_dist = d
+                    best_neighbor = n_id
+                    found_better = True
+            
+            if found_better:
+                events.append({
+                    "type": "MOVE", "level": level, "curr_node": curr_node,
+                    "from_node": curr_node, "to_node": best_neighbor, "dist": best_neighbor_dist
+                })
+                curr_node = best_neighbor
+                curr_dist = best_neighbor_dist
+            else:
+                events.append({"type": "LOCAL_MIN", "level": level, "curr_node": curr_node, "dist": curr_dist})
+                break 
+        
+        if level > 0:
+            events.append({"type": "DROP_LAYER", "level": level, "next_level": level-1, "curr_node": curr_node, "dist": curr_dist})
+
+    return events
+
+raw_events = record_search_events(system, query_point)
+
+# ==========================================
+# 5. FRAME GENERATION (2D Projected View)
+# ==========================================
+animation_frames = []
+history_trail = [] 
+
+def interpolate(p1, p2, steps=10):
+    return [p1 + (p2 - p1) * i / steps for i in range(steps + 1)]
+
+for event in raw_events:
+    # Use PLOT coordinates for visual history
+    c_pos_plot = get_plot_pos(event['curr_node'])
+    c_pos_real = get_real_pos(event['curr_node'])
+    
+    lvl = event['level']
+    current_dist = event['dist']
+    
+    base_state = {
+        'level': lvl, 'curr_pos': c_pos_plot, 'dist': current_dist,
+        'neighbors_good': [], 'neighbors_bad': [],
+        'trail': list(history_trail),
+        'alpha': 1.0, 'status': 'normal'
+    }
+
+    if event['type'] == 'LAYER_START':
+        for _ in range(10):
+            frame = base_state.copy()
+            frame.update({'title': f"Entering Layer {lvl}", 'status': 'entered'})
+            animation_frames.append(frame)
+
+    elif event['type'] == 'SCAN':
+        n_ids = event['neighbors']
+        good, bad = [], []
+        for nid in n_ids:
+            # Logic: Check Real Dist
+            real_pos = get_real_pos(nid)
+            # Visual: Append Plot Pos
+            plot_pos = get_plot_pos(nid)
+            
+            if distance.euclidean(real_pos, query_point) < current_dist:
+                good.append(plot_pos)
+            else:
+                bad.append(plot_pos)
+        
+        for _ in range(20):
+            frame = base_state.copy()
+            frame.update({
+                'title': f"Scanning {len(n_ids)} Neighbors...", 
+                'neighbors_good': good, 'neighbors_bad': bad,
+                'status': 'scanning'
+            })
+            animation_frames.append(frame)
+
+    elif event['type'] == 'MOVE':
+        history_trail.append(c_pos_plot)
+        start_plot = get_plot_pos(event['from_node'])
+        end_plot = get_plot_pos(event['to_node'])
+        
+        path = interpolate(start_plot, end_plot, steps=20)
+        for p in path:
+            frame = base_state.copy()
+            frame.update({
+                'title': "Moving to Closer Neighbor", 
+                'curr_pos': p, 
+                'trail': list(history_trail),
+                'status': 'moving'
+            })
+            animation_frames.append(frame)
+
+    elif event['type'] == 'LOCAL_MIN':
+        for _ in range(15):
+            frame = base_state.copy()
+            frame.update({'title': "Local Minimum Reached", 'status': 'stuck'})
+            animation_frames.append(frame)
+
+    elif event['type'] == 'DROP_LAYER':
+        steps = 30
+        for i in range(steps):
+            frame = base_state.copy()
+            frame.update({
+                'title': f"Dropping Layer {lvl} -> {event['next_level']}",
+                'status': 'fading',
+                'next_level': event['next_level'],
+                'fade_progress': i / steps
+            })
+            animation_frames.append(frame)
+
+# ==========================================
+# 6. PLOTTING
+# ==========================================
+fig, ax = plt.subplots(figsize=(9, 9), facecolor=COLORS['bg'])
+ax.set_facecolor(COLORS['bg'])
+
+def update(frame_idx):
+    ax.clear()
+    if not animation_frames: return
+
+    state = animation_frames[frame_idx]
+    
+    # 1. Radar Circles (Only for 2D to avoid confusion)
+    if dim == 2:
+        for radius in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]:
+            circle = Circle((plot_query[0], plot_query[1]), radius, 
+                            color=COLORS['query'], fill=False, alpha=0.1, linestyle='--')
+            ax.add_patch(circle)
+
+    # 2. Trail
+    if state['trail']:
+        trail_arr = np.array(state['trail'])
+        ax.plot(trail_arr[:, 0], trail_arr[:, 1], color=COLORS['trail'], 
+                linestyle=':', linewidth=2, alpha=0.5, label='History')
+        ax.scatter(trail_arr[:, 0], trail_arr[:, 1], color=COLORS['trail'], s=30, alpha=0.4)
+
+    # 3. Nodes (Fading or Normal)
+    if state['status'] == 'fading':
+        old_nodes = nodes_per_level[state['level']]
+        if len(old_nodes):
+            ax.scatter(old_nodes[:, 0], old_nodes[:, 1], c=COLORS['node_inactive'], s=60, 
+                      alpha=1.0 - state['fade_progress'], edgecolors='white')
+        new_nodes = nodes_per_level[state['next_level']]
+        if len(new_nodes):
+            ax.scatter(new_nodes[:, 0], new_nodes[:, 1], c=COLORS['node_inactive'], s=60, 
+                      alpha=state['fade_progress'], edgecolors='white')
+    else:
+        nodes = nodes_per_level[state['level']]
+        if len(nodes):
+            ax.scatter(nodes[:, 0], nodes[:, 1], c=COLORS['node_inactive'], s=60, alpha=0.8, edgecolors='white')
+        
+        # True Best (Projected)
+        if true_best_at_level[state['level']]:
+            tb_plot = get_plot_pos(true_best_id)
+            ax.scatter(tb_plot[0], tb_plot[1], c=COLORS['true_best'], marker='D', s=180, 
+                      zorder=5, edgecolors='black', label='True Best')
+
+    # 4. Neighbors
+    if state['status'] == 'scanning':
+        curr = state['curr_pos']
+        if state['neighbors_bad']:
+            bad = np.array(state['neighbors_bad'])
+            ax.scatter(bad[:, 0], bad[:, 1], c=COLORS['neighbor_bad'], s=80, zorder=4, alpha=0.6)
+            for n in bad:
+                ax.plot([curr[0], n[0]], [curr[1], n[1]], color=COLORS['neighbor_bad'], linestyle=':', alpha=0.3)
+        if state['neighbors_good']:
+            good = np.array(state['neighbors_good'])
+            ax.scatter(good[:, 0], good[:, 1], c=COLORS['neighbor_good'], s=120, zorder=5, edgecolors='white', linewidth=2)
+            for n in good:
+                ax.plot([curr[0], n[0]], [curr[1], n[1]], color=COLORS['neighbor_good'], linestyle='-', alpha=0.8, linewidth=2)
+
+    # 5. Searcher & Query
+    ax.scatter(state['curr_pos'][0], state['curr_pos'][1], c=COLORS['node_active'], s=250, zorder=6, edgecolors='white', linewidth=2)
+    ax.scatter(plot_query[0], plot_query[1], c=COLORS['query'], marker='*', s=400, zorder=10, edgecolors='white', linewidth=1.5, label='Target')
+
+    # Titles & Stats
+    title_text = f"{state['title']}"
+    if dim > 2:
+        title_text += f" ({dim}D PCA -> 2D)"
+        
+    ax.set_title(title_text, fontsize=16, fontweight='bold', color=COLORS['text'])
+    
+    stats_text = (f"Current Dist: {state['dist']:.4f}\n"
+                  f"True Best Dist: {true_best_dist:.4f}")
+    
+    ax.text(0.02, 0.92, stats_text, transform=ax.transAxes, 
+            fontsize=12, color=COLORS['text'], 
+            bbox=dict(facecolor='white', alpha=0.9, edgecolor='#bdc3c7', boxstyle='round,pad=0.5'))
+
+    # Auto-scale axis to fit the projected data
+    all_x = plot_data[:, 0]
+    all_y = plot_data[:, 1]
+    margin = 0.1
+    ax.set_xlim(all_x.min() - margin, all_x.max() + margin)
+    ax.set_ylim(all_y.min() - margin, all_y.max() + margin)
+    ax.axis('off')
+
+ani = animation.FuncAnimation(fig, update, frames=len(animation_frames), interval=40, repeat=False)
+plt.show()

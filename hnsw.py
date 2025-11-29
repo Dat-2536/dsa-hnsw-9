@@ -31,7 +31,9 @@ class HNSWSearchSystem:
             self.ef_construction = ef_construction
             self.M = M
             self.is_built = True
-            self.index.init_index(max_elements, ef_construction, M)       
+            
+            # FIXED: Used keyword arguments to ensure M and ef_construction are not swapped
+            self.index.init_index(max_elements=max_elements, M=M, ef_construction=ef_construction)       
 
     def set_ef(self, val: int):
          # higher ef leads to better accuracy, but slower search
@@ -88,7 +90,8 @@ class HNSWSearchSystem:
     def clear(self) -> None:
           self.index = hnswlib.Index(self.space, self.dim)
           if hasattr(self, 'max_elements') and hasattr(self, 'ef_construction') and hasattr(self, 'M'):
-               self.index.init_index(self.max_elements, self.ef_construction, self.M)
+               # FIXED: Used keyword arguments here as well
+               self.index.init_index(max_elements=self.max_elements, M=self.M, ef_construction=self.ef_construction)
         
                # Thiết lập lại các tham số tìm kiếm nếu tồn tại
                if hasattr(self, 'ef_search'):
@@ -148,27 +151,8 @@ class HNSWSearchSystem:
         """
         if not self.is_built:
             raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
-        # Giả định hàm C++ binding có tên là get_entry_point_label()
-        # và trả về None nếu không có entry point
         if hasattr(self.index, 'get_entry_point_label'):
              return self.index.get_entry_point_label()
-        return None # Hoặc một giá trị mặc định nếu hàm chưa tồn tại
+        return None
     
     
-    def create_copy(self) -> 'HNSWSearchSystem':
-        """
-        Tạo bản Deep copy của hệ thống (dùng pickle round-trip)
-        """
-        # Tạo bản copy của index HNSW
-        index_copy = pickle.loads(pickle.dumps(self.index))
-        
-        # Tạo hệ thống mới
-        new_system = HNSWSearchSystem(self.space, self.dim)
-        new_system.index = index_copy
-        new_system.is_built = self.is_built
-        new_system.max_elements = self.max_elements
-        new_system.ef_construction = self.ef_construction
-        new_system.M = self.M
-        new_system.ef_search = self.ef_search
-        
-        return new_system
