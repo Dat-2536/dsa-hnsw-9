@@ -1,6 +1,10 @@
+import os
 from pymongo import MongoClient
+from dotenv import load_dotenv
 
-uri = "mongodb+srv://data_team:ktmt@facereccluster.hjfd7ad.mongodb.net/?retryWrites=true&w=majority&appName=FaceRecCluster"
+load_dotenv()
+
+uri = os.getenv("MONGODB_URI")
 client = MongoClient(uri)
 collection = client['FaceRecProject']['PeopleMetadata']
 
