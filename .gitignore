@@ -11,3 +11,4 @@ venv/
 
 # Ignore environment variable files
 .env
+face_recog_dlib_file/
