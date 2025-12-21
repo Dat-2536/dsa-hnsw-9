@@ -3,6 +3,20 @@ import React, { useEffect, useRef, useState } from "react";
 import { recognizeFrame } from "../services/api";
 import FaceBox from "../components/FaceBox";
 
+// Hàm helper: convert distance -> similarity %
+function distanceToSimilarity(distance, maxDistance = 0.5){
+  return sigmoid_similarity(distance, maxDistance, 15);
+}
+
+function sigmoid_similarity(distance, threshold=0.5, alpha=20) {
+  if (typeof distance !== "number" || Number.isNaN(distance)) {
+    return 0;
+  }
+  const expComponent = Math.exp(alpha * (distance - threshold));
+  const similarity = 100 / (1 + expComponent);
+  return Math.round(similarity);
+}
+
 const WebcamPage = () => {
   const videoRef = useRef(null);
   const overlayRef = useRef(null); // Canvas phủ lên để vẽ khung
@@ -136,7 +150,8 @@ const WebcamPage = () => {
       ctx.strokeRect(left, top, width, height);
 
       // 2. Vẽ nền chữ
-      const label = `${face.name} (${typeof face.distance === 'number' ? face.distance.toFixed(2) : face.distance})`;
+      const similarity = distanceToSimilarity(face.distance);
+      const label = `${face.name} (${similarity}%)`;
       const textWidth = ctx.measureText(label).width + 12;
       const textHeight = 28;
 

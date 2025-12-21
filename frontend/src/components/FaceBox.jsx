@@ -2,15 +2,17 @@
 import React from "react";
 
 // Hàm helper: convert distance -> similarity %
-function distanceToSimilarity(distance, maxDistance = 0.5) {
+function distanceToSimilarity(distance, maxDistance = 0.4) {
+  return sigmoid_similarity(distance, maxDistance, 10);
+}
+
+function sigmoid_similarity(distance, threshold=0.5, alpha=20) {
   if (typeof distance !== "number" || Number.isNaN(distance)) {
     return 0;
   }
-
-  // similarity = 1 - d / d_max  (clamp 0..1)
-  const score = 1 - distance / maxDistance;
-  const clamped = Math.max(0, Math.min(1, score));
-  return Math.round(clamped * 100); // trả về % nguyên, ví dụ 87
+  const expComponent = Math.exp(alpha * (distance - threshold));
+  const similarity = 100 / (1 + expComponent);
+  return Math.round(similarity);
 }
 
 const FaceBox = ({ face }) => {
@@ -40,8 +42,8 @@ const FaceBox = ({ face }) => {
     face.info?.Ten ||
     "Unknown";
 
-  // ❗ Nếu độ tương đồng = 0% → coi như không nhận ra
-  if (similarity === 0) {
+  // Nếu độ tương đồng < 50% -> coi như không nhận ra
+  if (similarity < 50) {
     mssv = "Unknown";
     name = "Unknown";
   }
