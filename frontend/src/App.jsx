@@ -12,10 +12,10 @@ import AboutPage from "./pages/AboutPage";
 function App() {
   return (
     <Router>
-      {/* Navbar xuất hiện ở mọi trang */}
+      {/* Navbar shown on every page */}
       <Navbar />
 
-      {/* Các Route */}
+      {/* Routes */}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/upload" element={<UploadPage />} />

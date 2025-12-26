@@ -2,20 +2,20 @@
 
 > Hệ thống nhận diện khuôn mặt và tìm kiếm vector tốc độ cao sử dụng thuật toán HNSW và MongoDB Atlas.
 
-## 🌐 Demo Trực tuyến
+## :globe_with_meridians: Demo Trực tuyến
 
   * **Landing Page:** [https://dat-2536.github.io/dsa-hnsw-9/](https://dat-2536.github.io/dsa-hnsw-9/)
   * **Web App (Live):** [https://dsa-hnsw-9.vercel.app](https://dsa-hnsw-9.vercel.app)
 
-## 📖 Giới thiệu
+## :book: Giới thiệu
 
 Dự án này xây dựng một hệ thống định danh thời gian thực (Real-time Identification) với độ trễ thấp, được thiết kế tối ưu cho môi trường Cloud. Hệ thống kết hợp giữa **Face Recognition** (trích xuất đặc trưng khuôn mặt) và **HNSW** (Hierarchical Navigable Small World) để truy vấn nhanh trên tập dữ liệu lớn.
 
 ### Kiến trúc hệ thống
 
-1.  **Backend (Flask):** Xử lý API, nhận diện khuôn mặt và tìm kiếm vector (HNSW). Deploy trên Render.
-2.  **Frontend (React + Vite):** Giao diện người dùng hiện đại, xử lý webcam đa luồng để hiển thị mượt mà.
-3.  **Database (MongoDB Atlas):** Lưu trữ metadata và feature vectors trên Cloud.
+1.  **Backend (Flask):** Xử lý API, nhận diện khuôn mặt và tìm kiếm vector (HNSW). Deploy trên `HuggingFace`.
+2.  **Frontend (React + Vite):** Giao diện người dùng xử lý webcam đa luồng để hiển thị mượt mà. Deploy trên `Vercel`.
+3.  **Database (MongoDB Atlas):** Lưu trữ metadata và feature vectors trên `MongoDB`.
 
 -----
 
@@ -79,7 +79,7 @@ VITE_BACKEND_URL=http://localhost:8000
 
 -----
 
-## 🚀 Hướng dẫn Sử dụng
+## :pushpin: Hướng dẫn Sử dụng
 
 ### 1\. Nạp dữ liệu (Data Import)
 
@@ -110,7 +110,7 @@ npm run dev
 
 -----
 
-## 🧪 Chạy các Demo
+## :arrow_forward: Chạy các Demo
 
 Các script này dùng để kiểm thử hiệu năng thuật toán mà không cần chạy toàn bộ server web.
 
@@ -132,7 +132,7 @@ python demos/visualize.py
 
 -----
 
-## 📡 API Documentation
+## :satellite: API Documentation
 
 ### 1\. Nhận diện qua Webcam (Realtime)
 
@@ -148,15 +148,23 @@ python demos/visualize.py
   * **Response (Success):**
     ```json
     {
-        "faces": [
-            {
-                "student_id": "2011001",
-                "name": "Nguyen Van A",
-                "distance": 0.35,
-                "box": [100, 200, 300, 400],
-                "crop_image": "data:image/jpeg;base64..."
-            }
-        ]
+      "elapsed_ms": {{elapsed_time_ms}},
+      "faces": [
+        {
+          "box": [
+            {{x_coordinate}},
+            {{y_coordinate}},
+            {{width}},
+            {{height}}
+          ],
+          "crop_image": "{{base64_image_string}}",
+          "distance": {{similarity_score}},
+          "mode": "{{search_algorithm}}",
+          "name": "{{person_name}}",
+          "student_id": "{{student_id}}"
+        }
+      ],
+      "mode": "{{global_search_mode}}"
     }
     ```
 
@@ -168,16 +176,16 @@ python demos/visualize.py
 
 -----
 
-## 📊 Google Colab Resources
+## :bar_chart: Google Colab Resources
 
   * [Mô phỏng quá trình tìm kiếm sử dụng đồ thị HNSW](https://colab.research.google.com/drive/12AIafk-Fpl572KC7bbj-SmKZucqr3K7W?usp=sharing)
   * [So sánh giữa HNSW và Brute Force](https://colab.research.google.com/drive/1QEikK7hTZ6dJoA7pDZ_SpIHq9lGO_HW1#scrollTo=l2xGFl2BFzEk)
   * [Mô phỏng kết quả của việc truy vấn một vector ngẫu nhiên](https://colab.research.google.com/drive/1dWbGTWvKGRy7o77not6ntFy-LrmREYCj#scrollTo=BZ57eTlREtOW)
 
-## 👥 Thành viên thực hiện (HCMUT - Honors Program)
+## :busts_in_silhouette: Thành viên thực hiện (HCMUT - Honors Program)
 
 | Tên | MSSV | Vai trò |
 |----------|----------|----------|
 | **Lê Hoàng Long** | 2411915 | Backend & Algorithm |
 | **Nguyễn Tiến Đạt** | 2410712 | Frontend & Deployment |
-| **Nguyễn Hoàng Minh** | 2412084 | Data Pipeline & Database |
+| **Nguyễn Hoàng Minh** | 2412084 | Database |

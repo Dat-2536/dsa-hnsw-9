@@ -19,22 +19,22 @@ load_dotenv()
 
 class FaceSearchEngine:
     def __init__(self):
-        # Cấu hình MongoDB
+        # Configure MongoDB connection
         self.uri = os.getenv("MONGO_URI")
         if not self.uri:
              raise ValueError("Chưa cấu hình MONGO_URI trong file .env")
         self.client = MongoClient(self.uri)
         self.collection = self.client['FaceRecProject']['PeopleMetadata']
         
-        # Khởi tạo search system
+        # Initialize the search system
         self.dim = 128
         self.search_system = None
         
-        # Nếu import được class wrapper thì dùng, không thì dùng thư viện gốc
+        # Prefer the wrapper class if available; otherwise fall back to the core library
         if HNSWSearchSystem:
             self.search_system = HNSWSearchSystem(space='l2', dim=self.dim)
         else:
-            # Fallback dùng trực tiếp thư viện gốc nếu không có wrapper
+            # Fallback to the original hnswlib when the wrapper is missing
             import hnswlib
             self.search_system = hnswlib.Index(space='l2', dim=self.dim)
 
@@ -69,8 +69,8 @@ class FaceSearchEngine:
 
         print(f"Đã tải {len(vectors)} vector. Đang xây dựng HNSW Index...")
 
-        # Xây dựng index bằng phương thức của class HNSWSearchSystem
-        # Lưu ý: Class wrapper của bạn có method build_hnsw_index và add_items
+        # Build the index using methods on HNSWSearchSystem
+        # Note: the wrapper exposes build_hnsw_index and add_items
         if hasattr(self.search_system, 'build_hnsw_index'):
              self.search_system.build_hnsw_index(
                 max_elements=len(vectors) + 1000, 
@@ -80,25 +80,25 @@ class FaceSearchEngine:
              self.search_system.add_items(np.array(vectors), np.array(ids))
              self.search_system.set_ef(50)
         else:
-            # Fallback cho thư viện gốc hnswlib (nếu không dùng wrapper)
+            # Fallback for the base hnswlib library when the wrapper is not used
             self.search_system.init_index(max_elements=len(vectors) + 1000, ef_construction=200, M=16)
             self.search_system.add_items(np.array(vectors), np.array(ids))
             self.search_system.set_ef(50)
         
-        # Lấy kích thước index (wrapper có hàm get_size, thư viện gốc có get_current_count)
+        # Derive index size (wrapper has get_size, base library uses get_current_count)
         size = self.search_system.get_size() if hasattr(self.search_system, 'get_size') else self.search_system.get_current_count()
         print(f"Xây dựng xong Index với {size} phần tử!")
     
     def search_face(self, query_vector):
         """
-        Input: query_vector (list hoặc numpy array 128 chiều)
+        Input: query_vector (list or numpy array, length 128)
         """
-        # Kiểm tra xem index đã build chưa
+        # Verify the index is built
         is_built = False
         if hasattr(self.search_system, 'is_built'):
             is_built = self.search_system.is_built
         else:
-            # Thư viện gốc coi như đã build nếu đã init
+            # The base library treats init as built
             is_built = True 
 
         if self.search_system is None or not is_built:
@@ -109,13 +109,13 @@ class FaceSearchEngine:
         query_np = np.array([query_vector])
         
         try:
-            # Dùng hàm knn_query của wrapper hoặc thư viện gốc
+            # Use knn_query from the wrapper or the base library
             labels, distances = self.search_system.knn_query(query_np, k=1)
             
             found_id = labels[0][0]
             distance = distances[0][0]
             
-            # Ngưỡng (Threshold): 0.5 - 0.6 là mức trung bình cho Euclidean Distance (l2)
+            # Threshold: 0.5 - 0.6 is a typical range for Euclidean distance (l2)
             if distance > 0.5: 
                 return {"status": "unknown", "distance": float(distance)}
                 
@@ -129,11 +129,11 @@ class FaceSearchEngine:
             print(f"Lỗi khi search vector: {e}")
             return None
 
-# --- PHẦN TEST ---
+# --- Test harness ---
 if __name__ == "__main__":
     engine = FaceSearchEngine()
     engine.load_data_and_build_index()
     
-    # Test thử với vector ngẫu nhiên
+    # Quick sanity check with a random vector
     dummy_vec = np.random.rand(128)
     print("Test Search Result:", engine.search_face(dummy_vec))

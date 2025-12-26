@@ -8,7 +8,7 @@ sys.path.append(parent_dir)
 import hnswlib
 import matplotlib.pyplot as plt
 
-# (1) LỚP BRUTE-FORCE KNN
+# (1) Brute-force KNN class
 class BruteForceKNN:
     def __init__(self):
         self.data = None
@@ -24,7 +24,7 @@ class BruteForceKNN:
         return top_k_indices, distances[top_k_indices]
 
 
-# (2) LỚP HNSW SEARCH SYSTEM
+# (2) HNSW search system class
 class HNSWSearchSystem:
     def __init__(self, space: str = 'l2', dim: int = 16):
         self.space = space
@@ -41,7 +41,7 @@ class HNSWSearchSystem:
 
     def add_items(self, items,  ids = None) -> None:
         """
-        Thêm các phần tử vào self index
+        Add elements into the index
         """
         if not self.is_built:
             raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
@@ -52,7 +52,7 @@ class HNSWSearchSystem:
         return labels, distances
 
 
-# (3) HÀM SO SÁNH 1 LẦN
+# (3) Single comparison demo
 def main():
     N_SAMPLES = 1000
     DIMENSION = 128
@@ -92,7 +92,7 @@ def main():
     print(f" HNSW nhanh hơn khoảng: {bf_time / hnsw_time:.2f} lần (ước tính)")
 
 
-# (4) HÀM ĐO HIỆU NĂNG & VẼ ĐỒ THỊ THỜI GIAN
+# (4) Benchmark and plot latency
 def benchmark_performance():
     DIM = 128
     K = 10
@@ -141,7 +141,7 @@ def benchmark_performance():
     plt.show()
 
 
-# (5) BIỂU ĐỒ RECALL@K vs THỜI GIAN
+# (5) Recall@K versus latency chart
 def recall_vs_time():
     N = 10000
     DIM = 128
@@ -185,7 +185,7 @@ def recall_vs_time():
     plt.show()
 
 
-# (6) CHẠY TOÀN BỘ CHƯƠNG TRÌNH
+# (6) Run full demo
 if __name__ == "__main__":
     main()
     benchmark_performance()
