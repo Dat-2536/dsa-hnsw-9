@@ -8,6 +8,7 @@ const UploadPage = () => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const fileInputRef = useRef(null);
 
   function handleFileChange(e) {
@@ -28,6 +29,7 @@ const UploadPage = () => {
     try {
       const res = await recognizeImage(formData);
       setResults(res?.faces || []);
+      setElapsedTime(res?.elapsed_ms || 0);
     } catch (err) {
       console.error(err);
       alert("Có lỗi xảy ra khi gọi API nhận diện.");
@@ -49,13 +51,13 @@ const UploadPage = () => {
           </div>
 
           <div className="row g-4">
-            {/* Upload & preview */}
+            {/* Upload and preview section */}
             <div className="col-lg-8">
               <div className="card bg-dark border-secondary h-100">
                 <div className="card-body d-flex flex-column">
-                  <h5 className="card-title mb-3 text-light">Chọn ảnh</h5>
+                  <h5 className="card-title mb-3 text-light">Select image</h5>
 
-                  {/* Khung chọn tệp lớn hơn */}
+                  {/* Larger file selection area */}
                   <div className="mb-3">
                     <label
                       className="form-label text-light mb-2"
@@ -68,7 +70,7 @@ const UploadPage = () => {
                       style={{
                         cursor: "pointer",
                         backgroundColor: "#15171b",
-                        minHeight: 220, // 🔥 to hơn, dễ click
+                        minHeight: 220,
                       }}
                       onClick={() => fileInputRef.current?.click()}
                     >
@@ -89,7 +91,7 @@ const UploadPage = () => {
                       </span>
                     </div>
 
-                    {/* input thật ẩn đi */}
+                    {/* Hidden actual input */}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -99,7 +101,7 @@ const UploadPage = () => {
                     />
                   </div>
 
-                  {/* Preview ảnh */}
+                  {/* Image preview */}
                   {previewUrl && (
                     <div className="mb-3 text-center">
                       <img
@@ -131,13 +133,13 @@ const UploadPage = () => {
               </div>
             </div>
 
-            {/* Results – GIẢM còn col-lg-4 */}
+            {/* Results – reduced to col-lg-4 */}
             <div className="col-lg-4">
               <div className="d-flex justify-content-between align-items-center mb-2">
-                <h5 className="mb-0 text-light">Kết quả nhận diện</h5>
+                <h5 className="mb-0 text-light" style={{ minWidth: "9em" }}>Kết quả nhận diện</h5>
                 <span className="small text-light" style={{ opacity: 0.7 }}>
                   {results.length > 0
-                    ? `${results.length} khuôn mặt được nhận diện`
+                    ? `${results.length} khuôn mặt được nhận diện sau ${Number(elapsedTime).toFixed(2)}ms`
                     : "Chưa có kết quả"}
                 </span>
               </div>
