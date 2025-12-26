@@ -5,11 +5,11 @@ import pickle
 class HNSWSearchSystem:
     def __init__(self, space: str = 'l2', dim: int = 16):
         """
-        Khởi tạo hệ thống tìm kiếm
-        
+        Initialize the search system
+
         Args:
-            space: Không gian khoảng cách ('l2', 'cosine', 'ip')
-            dim: Số chiều của vector
+            space: Distance space ('l2', 'cosine', 'ip')
+            dim: Vector dimensionality
         """
         self.space = space
         self.dim = dim
@@ -18,15 +18,15 @@ class HNSWSearchSystem:
 
     def build_hnsw_index(self, max_elements: int = 10000, ef_construction: int = 200, M: int = 128) -> None:
             """
-            Xây dựng chỉ mục HNSW
-            
+            Build the HNSW index
+
             Args:
-                data: Dữ liệu vector
-                max_elements: Số lượng phần tử tối đa
-                ef_construction: Tham số ef cho quá trình xây dựng 
-                M: Tham số M (số lượng kết nối tối đa)
+                data: Vector data
+                max_elements: Maximum number of elements
+                ef_construction: ef parameter during index build
+                M: Maximum number of connections per node
             """
-            #xây dựng index
+            # Build the index
             self.max_elements = max_elements
             self.ef_construction = ef_construction
             self.M = M
@@ -48,7 +48,7 @@ class HNSWSearchSystem:
 
     def add_items(self, items,  ids = None) -> None:
         """
-        Thêm các phần tử vào self index
+        Add elements into the index
         """
         if not self.is_built:
             raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
@@ -93,30 +93,30 @@ class HNSWSearchSystem:
                # FIXED: Used keyword arguments here as well
                self.index.init_index(max_elements=self.max_elements, M=self.M, ef_construction=self.ef_construction)
         
-               # Thiết lập lại các tham số tìm kiếm nếu tồn tại
+               # Restore search parameters when available
                if hasattr(self, 'ef_search'):
                     self.index.set_ef(self.ef_search)
                if hasattr(self, 'num_threads'):
                     self.index.set_num_threads(self.num_threads)
           else:
-               # Nếu chưa từng được build, đánh dấu là chưa build
+               # If it has never been built, mark as not built
                self.is_built = False  
       
     def generate_data(self, num_elements:int) -> None:
-         #Tạo ngẫu nhiên một só các vector để add vào đồ thị
+         # Randomly generate vectors to add into the graph
          data = np.float32(np.random.random((num_elements, self.dim)))
          self.add_items(data)
 
     def knn_query(self, query: np.ndarray, k: int = 1) -> tuple:
         """
-        Tìm kiếm K láng giềng gần nhất
-        
+        Search for the K nearest neighbors
+
         Args:
-            query: Vector truy vấn (có thể là 1 vector hoặc nhiều vector)
-            k: Số lượng kết quả trả về
-        
+            query: Query vector(s)
+            k: Number of results to return
+
         Returns:
-            (labels, distances): Tuple chứa nhãn và khoảng cách của K kết quả gần nhất
+            (labels, distances): Tuple of labels and distances for the top K results
         """
         if not self.is_built:
             raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
@@ -125,20 +125,20 @@ class HNSWSearchSystem:
         return labels, distances
     
     def get_graph_max_level(self) -> int:
-        """Trả về tầng cao nhất của toàn bộ đồ thị HNSW."""
+        """Return the highest level in the HNSW graph."""
         if not self.is_built:
             raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
         return self.index.get_graph_max_level()
 
     def get_element_max_level(self, label: int) -> int:
-        """Trả về tầng cao nhất mà một phần tử (theo label) tồn tại."""
+        """Return the highest level at which a labeled element exists."""
         if not self.is_built:
             raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
         return self.index.get_element_max_level(label)
 
     def get_neighbors(self, label: int, level: int) -> list:
         """
-        Trả về danh sách các label hàng xóm của một phần tử tại một tầng (level) nhất định.
+        Return the neighbor labels for an element at a given level.
         """
         if not self.is_built:
             raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")
@@ -146,8 +146,8 @@ class HNSWSearchSystem:
 
     def get_entry_point(self):
         """
-        Trả về label của điểm vào (entry point) hiện tại của đồ thị.
-        Trả về None nếu đồ thị rỗng.
+        Return the label of the current entry point of the graph.
+        Return None if the graph is empty.
         """
         if not self.is_built:
             raise ValueError("Chưa build index! Gọi build_hnsw_index() trước.")

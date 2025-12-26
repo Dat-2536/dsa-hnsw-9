@@ -10,32 +10,31 @@ from PIL import Image
 
 from faces_recognition.hnsw_manager import FaceSearchEngine
 
-# --- CẤU HÌNH SERVER ---
+# --- Server setup ---
 app = Flask(__name__)
-# Cho phép Frontend từ mọi nguồn (localhost, deploy) gọi vào
+# Allow frontend from any origin (local or deployed)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# --- KHỞI ĐỘNG HNSW ---
+# --- Initialize HNSW ---
 print("[INFO] Dang khoi dong Server va nap du lieu...")
 search_engine = FaceSearchEngine()
 
 try:
-    # Load dữ liệu từ Mongo và xây cây HNSW ngay khi Server bật
+    # Load Mongo data and build the HNSW index during startup
     search_engine.load_data_and_build_index()
     print("[SUCCESS] Server da san sang phuc vu tai http://localhost:8000")
 except Exception as e:
     print(f"[ERROR] LOI NGHIEM TRONG: Khong the khoi dong HNSW. Chi tiet: {e}")
 
-
-# ----------------- HÀM BRUTE-FORCE -----------------
+# ----------------- Brute-force helper -----------------
 def brute_force_search(query_vector, threshold=0.5):
     """
-    Tìm kiếm brute-force trên MongoDB:
-    - Duyệt tất cả feature_vector
-    - Tính khoảng cách L2
-    - Lấy doc có distance nhỏ nhất
+    Brute-force search on MongoDB:
+    - Iterate every feature_vector
+    - Compute L2 distance
+    - Return the doc with the smallest distance
     """
-    collection = search_engine.collection  # đã cấu hình sẵn trong FaceSearchEngine
+    collection = search_engine.collection  # configured inside FaceSearchEngine
     cursor = collection.find({"feature_vector": {"$exists": True}})
 
     best_doc = None
@@ -74,37 +73,34 @@ def brute_force_search(query_vector, threshold=0.5):
         "info": info,
     }
 
-
-# --- HÀM PHỤ TRỢ: GIẢI MÃ ẢNH BASE64 ---
+# --- Helper: decode Base64 image ---
 def decode_base64_image(base64_string):
-    """Chuyển chuỗi Base64 từ Webcam thành ảnh OpenCV (RGB)"""
+    """Convert a webcam Base64 string into an RGB OpenCV image."""
     try:
-        # Nếu chuỗi có header (ví dụ: "data:image/jpeg;base64,..."), hãy cắt bỏ nó
+        # Strip off any data URI header (e.g., "data:image/jpeg;base64,...")
         if "," in base64_string:
             base64_string = base64_string.split(",")[1]
 
         img_bytes = base64.b64decode(base64_string)
         nparr = np.frombuffer(img_bytes, np.uint8)
         img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        # Quan trọng: OpenCV dùng BGR, face_recognition cần RGB
+        # OpenCV uses BGR; face_recognition expects RGB
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         return img_rgb
     except Exception as e:
         print(f"[ERROR] Loi decode anh: {e}")
         return None
 
-
-# --- HÀM PHỤ TRỢ: CẮT ẢNH KHUÔN MẶT RA BASE64 ---
+# --- Helper: crop face to Base64 ---
 def crop_face_to_base64(image_rgb, top, right, bottom, left):
     try:
-        # Cắt ảnh theo toạ độ [y:y+h, x:x+w]
+        # Crop by coordinates [y:y+h, x:x+w]
         face_image = image_rgb[top:bottom, left:right]
 
-        # Chuyển sang PIL Image
+        # Convert to PIL Image
         pil_img = Image.fromarray(face_image)
 
-        # Lưu vào buffer
+        # Save into buffer
         buffered = BytesIO()
         pil_img.save(buffered, format="JPEG")
 
@@ -114,10 +110,8 @@ def crop_face_to_base64(image_rgb, top, right, bottom, left):
     except Exception as e:
         print(f"[ERROR] Loi crop anh: {e}")
         return ""
-
-
-# --- API 1: UPLOAD FILE ẢNH ---
-# Gọi từ frontend: POST /recognize_image?mode=hnsw|bruteforce
+# --- API 1: Upload image file ---
+# Called from frontend: POST /recognize_image?mode=hnsw|bruteforce
 @app.route("/recognize_image", methods=["POST"])
 def search_by_file():
     start_time = time.time()
@@ -134,24 +128,24 @@ def search_by_file():
         return jsonify({"error": "Chua chon file"}), 400
 
     try:
-        # Đọc ảnh trực tiếp từ file gửi lên
+        # Read the uploaded image file directly
         image = face_recognition.load_image_file(file)
 
-        # 1. Tìm vị trí khuôn mặt (Dùng HOG cho nhanh)
+        # 1. Find face locations (HOG for speed)
         face_locations = face_recognition.face_locations(image, model="hog")
 
         if len(face_locations) == 0:
             elapsed_ms = (time.time() - start_time) * 1000
             return jsonify({"faces": [], "mode": mode, "elapsed_ms": elapsed_ms}), 200
 
-        # 2. Encode khuôn mặt
+        # 2. Encode faces
         face_encodings = face_recognition.face_encodings(image, face_locations)
 
         results = []
 
-        # 3. Duyệt qua từng mặt tìm thấy
+        # 3. Loop through detected faces
         for i, query_vector in enumerate(face_encodings):
-            # Chọn thuật toán
+            # Choose the search algorithm
             if mode == "bruteforce":
                 search_result = brute_force_search(query_vector)
             else:
@@ -162,7 +156,7 @@ def search_by_file():
 
             top, right, bottom, left = face_locations[i]
 
-            # Cắt ảnh khuôn mặt
+            # Crop the face image
             crop_b64 = crop_face_to_base64(image, top, right, bottom, left)
 
             face_data = {
@@ -190,9 +184,8 @@ def search_by_file():
         print(f"[ERROR] Loi xu ly file: {e}")
         return jsonify({"error": str(e)}), 500
 
-
-# --- API 2: NHẬN DIỆN REALTIME (WEBCAM) ---
-# Gọi từ frontend: POST /recognize_frame?mode=hnsw|bruteforce
+# --- API 2: Realtime recognition (webcam) ---
+# Called from frontend: POST /recognize_frame?mode=hnsw|bruteforce
 @app.route("/recognize_frame", methods=["POST"])
 def search_by_base64():
     start_time = time.time()
@@ -201,34 +194,34 @@ def search_by_base64():
     if mode not in {"hnsw", "bruteforce"}:
         mode = "hnsw"
 
-    # 1. Lấy dữ liệu JSON
+    # 1. Parse JSON body
     data = request.get_json()
     if not data or "image" not in data:
         return jsonify({"error": "Thieu du lieu 'image'"}), 400
 
     base64_str = data["image"]
 
-    # 2. Giải mã Base64 -> Ảnh RGB
+    # 2. Decode Base64 into RGB image
     image_rgb = decode_base64_image(base64_str)
     if image_rgb is None:
         return jsonify({"error": "Anh base64 loi"}), 400
 
     try:
-        # 3. Tìm vị trí mặt (HOG)
+        # 3. Find face locations (HOG)
         face_locations = face_recognition.face_locations(image_rgb, model="hog")
 
         if len(face_locations) == 0:
             elapsed_ms = (time.time() - start_time) * 1000
             return jsonify({"faces": [], "mode": mode, "elapsed_ms": elapsed_ms}), 200
 
-        # 4. Encode mặt (Trích xuất đặc trưng 128D)
+        # 4. Encode faces (128D embeddings)
         face_encodings = face_recognition.face_encodings(image_rgb, face_locations)
 
         results = []
 
-        # 5. Duyệt và tìm kiếm
+        # 5. Loop and search
         for i, face_encoding in enumerate(face_encodings):
-            # Chọn thuật toán
+            # Choose the search algorithm
             if mode == "bruteforce":
                 search_result = brute_force_search(face_encoding)
             else:
@@ -264,8 +257,6 @@ def search_by_base64():
     except Exception as e:
         print(f"[ERROR] Loi realtime: {e}")
         return jsonify({"error": str(e)}), 500
-
-
-# --- CHẠY APP ---
+# --- Run app ---
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)

@@ -4,7 +4,7 @@ const API_BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
 function getSearchMode() {
   const mode = window.localStorage.getItem("searchMode");
-  // fallback mặc định là HNSW
+  // Default fallback is HNSW
   return mode === "bruteforce" ? "bruteforce" : "hnsw";
 }
 
@@ -21,7 +21,7 @@ export async function recognizeImage(formData) {
   }
 
   const data = await res.json();
-  // Gắn thêm thông tin thời gian client-side (nếu muốn)
+  // Optionally attach client-side timing info
   return data;
 }
 

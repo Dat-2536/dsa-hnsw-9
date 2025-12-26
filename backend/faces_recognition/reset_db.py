@@ -8,7 +8,7 @@ uri = os.getenv("MONGODB_URI")
 client = MongoClient(uri)
 collection = client['FaceRecProject']['PeopleMetadata']
 
-# Xóa trường feature_vector trong TẤT CẢ các bản ghi
+# Remove feature_vector from every record
 collection.update_many({}, {"$unset": {"feature_vector": ""}})
 
 print("Đã xóa sạch dữ liệu vector cũ. Hãy chạy lại data_import.py!")

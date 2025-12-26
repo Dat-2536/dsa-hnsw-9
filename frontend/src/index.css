@@ -3,7 +3,7 @@
 /* Themify Icons */
 @import "./assets/themify-icons/themify-icons.css";
 
-/* Reset nhẹ + tuỳ chỉnh chung, KHÔNG chạm vào layout flex như file Vite cũ */
+/* Light reset + shared tweaks; avoid touching the legacy Vite flex layout */
 :root {
   --bg-main: #000519;
   --bg-card: #0b1220;
@@ -32,7 +32,7 @@ body {
   color: var(--text-main);
 }
 
-/* Link màu theo Bootstrap nhưng rõ hơn chút trên nền tối */
+/* Link colors similar to Bootstrap but a bit brighter on dark backgrounds */
 a {
   color: var(--accent);
   text-decoration: none;
@@ -47,7 +47,7 @@ a:hover {
   min-height: 100vh;
 }
 
-/* Card style tuỳ chỉnh cho 2 ô mode trên HomePage */
+/* Custom card style for the two mode tiles on HomePage */
 .mode-card {
   background: radial-gradient(circle at top left, #111827, #020617);
   border-radius: 1rem;

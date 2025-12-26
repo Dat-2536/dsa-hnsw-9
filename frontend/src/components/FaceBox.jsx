@@ -1,8 +1,8 @@
 // src/components/FaceBox.jsx
 import React from "react";
 
-// Hàm helper: convert distance -> similarity %
-function distanceToSimilarity(distance, maxDistance = 0.4) {
+// Helper: convert distance to similarity percentage
+function distanceToSimilarity(distance, maxDistance = 0.5) {
   return sigmoid_similarity(distance, maxDistance, 10);
 }
 
@@ -16,10 +16,10 @@ function sigmoid_similarity(distance, threshold=0.5, alpha=20) {
 }
 
 const FaceBox = ({ face }) => {
-  // Ảnh mặt cắt ra từ backend (upload / webcam)
+  // Face crop returned by backend (upload / webcam)
   const imgSrc = face.crop_image || face.image_url || face.imgSrc || null;
 
-  // Lấy distance “thật”
+  // Parse the raw distance value
   let rawDistance;
   if (typeof face.distance === "number") {
     rawDistance = face.distance;
@@ -30,7 +30,7 @@ const FaceBox = ({ face }) => {
 
   const similarity = distanceToSimilarity(rawDistance); // 0–100 (%)
 
-  // Lấy MSSV / Tên từ backend nếu có
+  // Pull MSSV / name from backend if available
   let mssv =
     face.student_id ||
     face.mssv ||
@@ -42,8 +42,8 @@ const FaceBox = ({ face }) => {
     face.info?.Ten ||
     "Unknown";
 
-  // Nếu độ tương đồng < 50% -> coi như không nhận ra
-  if (similarity < 50) {
+  // Treat similarity <= 0% as unknown
+  if (similarity <= 0) {
     mssv = "Unknown";
     name = "Unknown";
   }
@@ -83,14 +83,14 @@ const FaceBox = ({ face }) => {
               <strong>Tên:</strong> {name}
             </p>
 
-            {/* Hiển thị độ tương đồng */}
+            {/* Show similarity */}
             {similarity !== undefined && (
               <p className="mb-1 small text-light" style={{ opacity: 0.8 }}>
                 <strong>Độ tương đồng:</strong> {similarity}%
               </p>
             )}
 
-            {/* Optional: vẫn hiển thị distance để debug */}
+            {/* Optional: also show distance for debugging */}
             {distanceText && (
               <p className="mb-0 small text-light" style={{ opacity: 0.8 }}>
                 <strong>Distance:</strong> {distanceText}
